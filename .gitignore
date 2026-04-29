@@ -1,0 +1,22 @@
+.DS_Store
+
+# Node / Vite
+node_modules/
+dist/
+dist-ssr/
+*.log
+*.local
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Python / MCP server runtime
+.venv/
+__pycache__/
+*.py[cod]
+
+# Local checkout of the upstream MCP server.
+# Clone it with the README steps instead of committing a nested repository.
+mlit-geospatial-mcp/
