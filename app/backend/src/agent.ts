@@ -12,6 +12,21 @@ interface TargetLocation {
   label?: string;
 }
 
+interface AgentContext {
+  selectedProperty?: unknown;
+  visiblePropertyCount?: unknown;
+}
+
+interface PropertyContext {
+  id?: number;
+  type?: string;
+  address?: string;
+  category?: string;
+  price?: number;
+  distance?: string;
+  similarity?: number;
+}
+
 const DEFAULT_TARGET_LOCATION: Required<TargetLocation> = {
   lat: 35.6812,
   lng: 139.7671,
@@ -37,14 +52,17 @@ const normalizeTargetLocation = (targetLocation: unknown): Required<TargetLocati
   };
 };
 
+const getFetchedAtLabel = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
+
 const createMockData = (targetLocation: Required<TargetLocation>) => {
   const lat = targetLocation.lat;
   const lng = targetLocation.lng;
+  const fetchedAt = getFetchedAtLabel();
 
   return [
-    { id: 1, type: '取引事例', address: `${targetLocation.label} 北東側`, category: '商業地域', price: 12500000, distance: '3分', lat: lat + 0.0020, lng: lng + 0.0024, similarity: 95 },
-    { id: 2, type: '地価公示', address: `${targetLocation.label} 東側`, category: '商業地域', price: 11200000, distance: '5分', lat: lat + 0.0008, lng: lng + 0.0041, similarity: 82 },
-    { id: 3, type: '取引事例', address: `${targetLocation.label} 南西側`, category: '近隣商業地域', price: 8500000, distance: '8分', lat: lat - 0.0032, lng: lng - 0.0025, similarity: 65 },
+    { id: 1, type: '取引事例', address: `${targetLocation.label} 北東側`, category: '商業地域', price: 12500000, distance: '3分', lat: lat + 0.0020, lng: lng + 0.0024, similarity: 95, source: 'MCP: 不動産価格情報', fetchedAt },
+    { id: 2, type: '地価公示', address: `${targetLocation.label} 東側`, category: '商業地域', price: 11200000, distance: '5分', lat: lat + 0.0008, lng: lng + 0.0041, similarity: 82, source: 'MCP: 地価公示', fetchedAt },
+    { id: 3, type: '取引事例', address: `${targetLocation.label} 南西側`, category: '近隣商業地域', price: 8500000, distance: '8分', lat: lat - 0.0032, lng: lng - 0.0025, similarity: 65, source: 'MCP: 不動産価格情報', fetchedAt },
   ];
 };
 
@@ -112,16 +130,62 @@ const getRetryDelay = (attemptIndex: number) => {
   return GEMINI_RETRY_BASE_DELAY_MS * 2 ** attemptIndex + jitterMs;
 };
 
-const generateGeminiContentWithRetry = async (ai: GoogleGenAI, model: string, userMessage: string, targetLocation: Required<TargetLocation>) => {
+const normalizeSelectedProperty = (selectedProperty: unknown): PropertyContext | undefined => {
+  if (typeof selectedProperty !== 'object' || selectedProperty === null) return undefined;
+  const record = selectedProperty as Record<string, unknown>;
+  const property: PropertyContext = {};
+  if (typeof record.id === 'number') property.id = record.id;
+  if (typeof record.type === 'string') property.type = record.type;
+  if (typeof record.address === 'string') property.address = record.address;
+  if (typeof record.category === 'string') property.category = record.category;
+  if (typeof record.price === 'number') property.price = record.price;
+  if (typeof record.distance === 'string') property.distance = record.distance;
+  if (typeof record.similarity === 'number') property.similarity = record.similarity;
+  return property;
+};
+
+const buildContextText = (context?: AgentContext) => {
+  const selectedProperty = normalizeSelectedProperty(context?.selectedProperty);
+  const visiblePropertyCount = typeof context?.visiblePropertyCount === 'number'
+    ? context.visiblePropertyCount
+    : undefined;
+
+  const lines: string[] = [];
+  if (visiblePropertyCount !== undefined) {
+    lines.push(`現在テーブルに表示中の比較候補数: ${visiblePropertyCount}件`);
+  }
+
+  if (selectedProperty) {
+    lines.push('選択中の比較事例:');
+    if (selectedProperty.id !== undefined) lines.push(`- ID: ${selectedProperty.id}`);
+    if (selectedProperty.type) lines.push(`- 種別: ${selectedProperty.type}`);
+    if (selectedProperty.address) lines.push(`- 所在地: ${selectedProperty.address}`);
+    if (selectedProperty.category) lines.push(`- 用途地域: ${selectedProperty.category}`);
+    if (selectedProperty.price !== undefined) lines.push(`- 価格: ${selectedProperty.price.toLocaleString()}円/㎡`);
+    if (selectedProperty.distance) lines.push(`- 駅距離: ${selectedProperty.distance}`);
+    if (selectedProperty.similarity !== undefined) lines.push(`- 類似度: ${selectedProperty.similarity}%`);
+  }
+
+  return lines.length > 0 ? `\n画面連動コンテキスト:\n${lines.join('\n')}` : '';
+};
+
+const generateGeminiContentWithRetry = async (
+  ai: GoogleGenAI,
+  model: string,
+  userMessage: string,
+  targetLocation: Required<TargetLocation>,
+  context?: AgentContext,
+) => {
   let lastError: unknown;
+  const linkedContext = buildContextText(context);
 
   for (let attempt = 0; attempt < GEMINI_RETRY_ATTEMPTS; attempt += 1) {
     try {
       return await ai.models.generateContent({
         model,
-        contents: `対象地点: ${targetLocation.label} (${targetLocation.lat}, ${targetLocation.lng})\n依頼内容: ${userMessage}`,
+        contents: `対象地点: ${targetLocation.label} (${targetLocation.lat}, ${targetLocation.lng})${linkedContext}\n依頼内容: ${userMessage}`,
         config: {
-          systemInstruction: "あなたは不動産鑑定士を支援するAIエージェントです。ユーザーの指示に基づき、指定された地域の不動産取引事例や地価情報を調査します。回答は簡潔にまとめ、どのようなデータを取得したかを説明してください。",
+          systemInstruction: "あなたは不動産鑑定士を支援するAIエージェントです。ユーザーの指示に基づき、指定された地域の不動産取引事例や地価情報を調査します。画面連動コンテキストに選択中の比較事例やテーブル表示件数がある場合は、それを現在ユーザーが見ている地図・テーブルの状態として扱ってください。回答は簡潔にまとめ、どのようなデータを取得したかを説明してください。",
           temperature: 0.7,
         }
       });
@@ -140,16 +204,24 @@ const generateGeminiContentWithRetry = async (ai: GoogleGenAI, model: string, us
   throw lastError;
 };
 
-export const handleAgentChat = async (userMessage: string, targetLocationInput?: unknown): Promise<{ text: string, data?: any[] }> => {
+export const handleAgentChat = async (
+  userMessage: string,
+  targetLocationInput?: unknown,
+  context?: AgentContext,
+): Promise<{ text: string, data?: any[] }> => {
   const apiKey = process.env.GEMINI_API_KEY;
   const model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
   const targetLocation = normalizeTargetLocation(targetLocationInput);
   const mockData = createMockData(targetLocation);
+  const selectedProperty = normalizeSelectedProperty(context?.selectedProperty);
+  const selectedPropertyText = selectedProperty
+    ? `選択中の比較事例「${selectedProperty.address ?? selectedProperty.id}」もチャット文脈に反映しています。`
+    : 'テーブル行は未選択です。';
 
   // Gemini APIキーがない場合はモックモード（固定返答）で動かす
   if (!apiKey || apiKey === 'dummy_key') {
     return {
-      text: `[Gemini未設定モード] ${targetLocation.label} を対象に「${userMessage}」について調査します。APIキーが設定されていないため、選択地点周辺のダミー調査結果を表示します。`,
+      text: `[Gemini未設定モード] ${targetLocation.label} を対象に「${userMessage}」について調査します。${selectedPropertyText} APIキーが設定されていないため、選択地点周辺のダミー調査結果を表示します。`,
       data: mockData
     };
   }
@@ -159,7 +231,7 @@ export const handleAgentChat = async (userMessage: string, targetLocationInput?:
     const ai = new GoogleGenAI({ apiKey });
 
     // 実際のGeminiによる回答生成（System Promptで鑑定士エージェントとしての振る舞いを定義）
-    const response = await generateGeminiContentWithRetry(ai, model, userMessage, targetLocation);
+    const response = await generateGeminiContentWithRetry(ai, model, userMessage, targetLocation, context);
 
     const textResponse = response.text || '情報を取得しました。';
 
@@ -174,14 +246,14 @@ export const handleAgentChat = async (userMessage: string, targetLocationInput?:
     const details = getApiErrorDetails(error);
     if (isQuotaExceededGeminiError(error)) {
       return {
-        text: `Gemini API の無料枠クォータに達したため、AI回答は一時停止しています。${targetLocation.label} 周辺の取得データを表示します。クォータが回復するまで待つか、.env の GEMINI_MODEL を別モデルに切り替えてください。`,
+        text: `Gemini API の無料枠クォータに達したため、AI回答は一時停止しています。${selectedPropertyText} ${targetLocation.label} 周辺の取得データを表示します。クォータが回復するまで待つか、.env の GEMINI_MODEL を別モデルに切り替えてください。`,
         data: mockData
       };
     }
 
     if (details.status === 503 || details.code === 'UNAVAILABLE') {
       return {
-        text: 'Gemini API が混み合っているため、複数回リトライしましたが応答を取得できませんでした。少し時間を置いて再送信してください。',
+        text: `Gemini API が混み合っているため、複数回リトライしましたが応答を取得できませんでした。${selectedPropertyText} 少し時間を置いて再送信してください。`,
         data: mockData
       };
     }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { MapArea } from './components/MapArea';
 import { ChatArea } from './components/ChatArea';
 import { DataTable } from './components/DataTable';
@@ -22,8 +22,17 @@ function App() {
     }
   ]);
   const [propertyData, setPropertyData] = useState<PropertyData[]>([]);
+  const [visiblePropertyData, setVisiblePropertyData] = useState<PropertyData[]>([]);
   const [targetLocation, setTargetLocation] = useState<TargetLocation>(DEFAULT_TARGET_LOCATION);
   const [selectedPropertyId, setSelectedPropertyId] = useState<number | null>(null);
+  const selectedProperty = useMemo(
+    () => propertyData.find(item => item.id === selectedPropertyId) ?? null,
+    [propertyData, selectedPropertyId],
+  );
+
+  const handlePropertySelect = (id: number | null) => {
+    setSelectedPropertyId(id);
+  };
 
   return (
     <>
@@ -42,28 +51,32 @@ function App() {
 
       <div className="layout-container">
         <MapArea
-          data={propertyData}
+          data={propertyData.length > 0 ? visiblePropertyData : propertyData}
           targetLocation={targetLocation}
           selectedPropertyId={selectedPropertyId}
           onTargetLocationChange={(location) => {
             setTargetLocation(location);
             setSelectedPropertyId(null);
           }}
-          onPropertySelect={setSelectedPropertyId}
+          onPropertySelect={handlePropertySelect}
         />
         <ChatArea
           messages={messages}
           setMessages={setMessages}
           targetLocation={targetLocation}
+          selectedProperty={selectedProperty}
+          visiblePropertyCount={visiblePropertyData.length}
           onPropertyDataUpdate={(data) => {
             setPropertyData(data);
+            setVisiblePropertyData(data);
             setSelectedPropertyId(data[0]?.id ?? null);
           }}
         />
         <DataTable
           data={propertyData}
           selectedPropertyId={selectedPropertyId}
-          onPropertySelect={setSelectedPropertyId}
+          onPropertySelect={handlePropertySelect}
+          onVisibleDataChange={setVisiblePropertyData}
         />
       </div>
     </>

@@ -15,8 +15,11 @@ app.use(express.json());
 // Chat endpoint
 app.post('/api/chat', async (req, res) => {
   try {
-    const { message, targetLocation } = req.body;
-    const response = await handleAgentChat(message, targetLocation);
+    const { message, targetLocation, selectedProperty, visiblePropertyCount } = req.body;
+    const response = await handleAgentChat(message, targetLocation, {
+      selectedProperty,
+      visiblePropertyCount,
+    });
     res.json({ reply: response.text, data: response.data });
   } catch (error) {
     console.error('Chat error:', error);

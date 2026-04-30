@@ -8,6 +8,8 @@ export interface PropertyData {
   lat: number;
   lng: number;
   similarity: number;
+  source?: string;
+  fetchedAt?: string;
 }
 
 export interface TargetLocation {

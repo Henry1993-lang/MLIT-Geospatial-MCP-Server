@@ -2,14 +2,25 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Sparkles, Loader2 } from 'lucide-react';
 import type { PropertyData, Message, TargetLocation } from '../types';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001';
+
 interface ChatAreaProps {
   messages: Message[];
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   targetLocation: TargetLocation;
+  selectedProperty: PropertyData | null;
+  visiblePropertyCount: number;
   onPropertyDataUpdate: (data: PropertyData[]) => void;
 }
 
-export const ChatArea = ({ messages, setMessages, targetLocation, onPropertyDataUpdate }: ChatAreaProps) => {
+export const ChatArea = ({
+  messages,
+  setMessages,
+  targetLocation,
+  selectedProperty,
+  visiblePropertyCount,
+  onPropertyDataUpdate,
+}: ChatAreaProps) => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -22,20 +33,25 @@ export const ChatArea = ({ messages, setMessages, targetLocation, onPropertyData
     scrollToBottom();
   }, [messages, isLoading]);
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+  const handleSend = async (messageOverride?: string) => {
+    const userMsg = (messageOverride ?? input).trim();
+    if (!userMsg || isLoading) return;
     
-    const userMsg = input.trim();
     const newUserMsg: Message = { id: Date.now().toString(), role: 'user', content: userMsg };
     setMessages(prev => [...prev, newUserMsg]);
     setInput('');
     setIsLoading(true);
     
     try {
-      const response = await fetch('http://localhost:3001/api/chat', {
+      const response = await fetch(`${API_BASE_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg, targetLocation })
+        body: JSON.stringify({
+          message: userMsg,
+          targetLocation,
+          selectedProperty,
+          visiblePropertyCount,
+        })
       });
       
       const resData = await response.json();
@@ -58,6 +74,10 @@ export const ChatArea = ({ messages, setMessages, targetLocation, onPropertyData
     }
   };
 
+  const selectedSummary = selectedProperty
+    ? `${selectedProperty.type} / ${selectedProperty.address} / ${selectedProperty.category} / ${selectedProperty.price.toLocaleString()}円/㎡`
+    : '未選択';
+
   return (
     <div className="glass-panel chat-section animate-fade-in" style={{ animationDelay: '0.2s' }}>
       <div style={{ padding: '16px', borderBottom: '1px solid var(--bg-panel-border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -67,6 +87,11 @@ export const ChatArea = ({ messages, setMessages, targetLocation, onPropertyData
       <div className="chat-context">
         <span>対象地点</span>
         <strong>{targetLocation.label}</strong>
+      </div>
+      <div className="chat-context linked-context">
+        <span>選択事例</span>
+        <strong>{selectedSummary}</strong>
+        <span className="linked-count">表示 {visiblePropertyCount}件</span>
       </div>
       
       <div className="chat-messages">
@@ -108,7 +133,15 @@ export const ChatArea = ({ messages, setMessages, targetLocation, onPropertyData
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           disabled={isLoading}
         />
-        <button className="chat-send-btn" onClick={handleSend} disabled={isLoading} style={{ opacity: isLoading ? 0.5 : 1 }}>
+        <button
+          className="context-action-btn"
+          onClick={() => handleSend('選択中の比較事例について、対象地との差異と追加確認すべき点を整理して')}
+          disabled={isLoading || !selectedProperty}
+          title="選択中のテーブル行をチャットで分析する"
+        >
+          分析
+        </button>
+        <button className="chat-send-btn" onClick={() => handleSend()} disabled={isLoading} style={{ opacity: isLoading ? 0.5 : 1 }}>
           <Send size={18} />
         </button>
       </div>
