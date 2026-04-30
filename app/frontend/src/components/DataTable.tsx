@@ -1,7 +1,13 @@
 import { Table } from 'lucide-react';
 import type { PropertyData } from '../types';
 
-export const DataTable = ({ data }: { data: PropertyData[] }) => {
+interface DataTableProps {
+  data: PropertyData[];
+  selectedPropertyId: number | null;
+  onPropertySelect: (id: number) => void;
+}
+
+export const DataTable = ({ data, selectedPropertyId, onPropertySelect }: DataTableProps) => {
   return (
     <div className="glass-panel data-section animate-fade-in" style={{ animationDelay: '0.3s' }}>
       <div className="data-table-header">
@@ -27,7 +33,11 @@ export const DataTable = ({ data }: { data: PropertyData[] }) => {
             </thead>
             <tbody>
               {data.map((item) => (
-                <tr key={item.id}>
+                <tr
+                  key={item.id}
+                  className={item.id === selectedPropertyId ? 'selected-row' : undefined}
+                  onClick={() => onPropertySelect(item.id)}
+                >
                   <td>
                     <span className={`badge ${item.type === '地価公示' ? 'badge-green' : 'badge-blue'}`}>
                       {item.type}

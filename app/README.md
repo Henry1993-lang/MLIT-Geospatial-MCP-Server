@@ -79,6 +79,7 @@ cp .env.example .env
 
 # AIエージェント用のAPIキー
 GEMINI_API_KEY=あなたの_Gemini_API_キー
+GEMINI_MODEL=gemini-2.5-flash
 
 # MCPサーバー（不動産情報ライブラリ）のAPIキー
 LIBRARY_API_KEY=あなたの_不動産情報ライブラリ_API_キー

@@ -10,6 +10,12 @@ export interface PropertyData {
   similarity: number;
 }
 
+export interface TargetLocation {
+  lat: number;
+  lng: number;
+  label: string;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'ai';

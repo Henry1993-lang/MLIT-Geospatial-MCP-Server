@@ -1,14 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Sparkles, Loader2 } from 'lucide-react';
-import type { PropertyData, Message } from '../types';
+import type { PropertyData, Message, TargetLocation } from '../types';
 
 interface ChatAreaProps {
   messages: Message[];
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
-  setPropertyData: React.Dispatch<React.SetStateAction<PropertyData[]>>;
+  targetLocation: TargetLocation;
+  onPropertyDataUpdate: (data: PropertyData[]) => void;
 }
 
-export const ChatArea = ({ messages, setMessages, setPropertyData }: ChatAreaProps) => {
+export const ChatArea = ({ messages, setMessages, targetLocation, onPropertyDataUpdate }: ChatAreaProps) => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -34,7 +35,7 @@ export const ChatArea = ({ messages, setMessages, setPropertyData }: ChatAreaPro
       const response = await fetch('http://localhost:3001/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg })
+        body: JSON.stringify({ message: userMsg, targetLocation })
       });
       
       const resData = await response.json();
@@ -47,7 +48,7 @@ export const ChatArea = ({ messages, setMessages, setPropertyData }: ChatAreaPro
       setMessages(prev => [...prev, newAiMsg]);
       
       if (resData.data && Array.isArray(resData.data)) {
-        setPropertyData(resData.data);
+        onPropertyDataUpdate(resData.data);
       }
     } catch (error) {
       console.error(error);
@@ -62,6 +63,10 @@ export const ChatArea = ({ messages, setMessages, setPropertyData }: ChatAreaPro
       <div style={{ padding: '16px', borderBottom: '1px solid var(--bg-panel-border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
         <Sparkles size={18} color="var(--accent-color)" />
         <span style={{ fontWeight: 600 }}>AI 調査アシスタント</span>
+      </div>
+      <div className="chat-context">
+        <span>対象地点</span>
+        <strong>{targetLocation.label}</strong>
       </div>
       
       <div className="chat-messages">

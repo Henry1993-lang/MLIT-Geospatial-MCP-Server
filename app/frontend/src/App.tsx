@@ -5,7 +5,13 @@ import { DataTable } from './components/DataTable';
 import { Building2, Settings } from 'lucide-react';
 import './index.css';
 
-import type { PropertyData, Message } from './types';
+import type { PropertyData, Message, TargetLocation } from './types';
+
+const DEFAULT_TARGET_LOCATION: TargetLocation = {
+  lat: 35.6812,
+  lng: 139.7671,
+  label: '東京駅周辺',
+};
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([
@@ -16,6 +22,8 @@ function App() {
     }
   ]);
   const [propertyData, setPropertyData] = useState<PropertyData[]>([]);
+  const [targetLocation, setTargetLocation] = useState<TargetLocation>(DEFAULT_TARGET_LOCATION);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<number | null>(null);
 
   return (
     <>
@@ -33,9 +41,30 @@ function App() {
       </header>
 
       <div className="layout-container">
-        <MapArea data={propertyData} />
-        <ChatArea messages={messages} setMessages={setMessages} setPropertyData={setPropertyData} />
-        <DataTable data={propertyData} />
+        <MapArea
+          data={propertyData}
+          targetLocation={targetLocation}
+          selectedPropertyId={selectedPropertyId}
+          onTargetLocationChange={(location) => {
+            setTargetLocation(location);
+            setSelectedPropertyId(null);
+          }}
+          onPropertySelect={setSelectedPropertyId}
+        />
+        <ChatArea
+          messages={messages}
+          setMessages={setMessages}
+          targetLocation={targetLocation}
+          onPropertyDataUpdate={(data) => {
+            setPropertyData(data);
+            setSelectedPropertyId(data[0]?.id ?? null);
+          }}
+        />
+        <DataTable
+          data={propertyData}
+          selectedPropertyId={selectedPropertyId}
+          onPropertySelect={setSelectedPropertyId}
+        />
       </div>
     </>
   );
