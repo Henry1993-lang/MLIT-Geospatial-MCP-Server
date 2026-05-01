@@ -34,6 +34,13 @@ function App() {
     setSelectedPropertyId(id);
   };
 
+  const handleTargetLocationChange = (location: TargetLocation) => {
+    setTargetLocation(location);
+    setPropertyData([]);
+    setVisiblePropertyData([]);
+    setSelectedPropertyId(null);
+  };
+
   return (
     <>
       <header className="app-header animate-fade-in">
@@ -54,10 +61,7 @@ function App() {
           data={propertyData.length > 0 ? visiblePropertyData : propertyData}
           targetLocation={targetLocation}
           selectedPropertyId={selectedPropertyId}
-          onTargetLocationChange={(location) => {
-            setTargetLocation(location);
-            setSelectedPropertyId(null);
-          }}
+          onTargetLocationChange={handleTargetLocationChange}
           onPropertySelect={handlePropertySelect}
         />
         <ChatArea

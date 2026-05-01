@@ -54,15 +54,33 @@ const normalizeTargetLocation = (targetLocation: unknown): Required<TargetLocati
 
 const getFetchedAtLabel = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
 
+const getLocationPriceMultiplier = (targetLocation: Required<TargetLocation>) => {
+  const latDelta = Math.abs(targetLocation.lat - DEFAULT_TARGET_LOCATION.lat);
+  const lngDelta = Math.abs(targetLocation.lng - DEFAULT_TARGET_LOCATION.lng);
+
+  if (latDelta < 0.01 && lngDelta < 0.01) {
+    return 1;
+  }
+
+  const distanceFromDefault = Math.hypot(latDelta, lngDelta);
+  const regionalAdjustment = Math.min(distanceFromDefault * 0.18, 0.55);
+  return Math.max(0.45, 1 - regionalAdjustment);
+};
+
+const scalePrice = (basePrice: number, multiplier: number) => {
+  return Math.round((basePrice * multiplier) / 10_000) * 10_000;
+};
+
 const createMockData = (targetLocation: Required<TargetLocation>) => {
   const lat = targetLocation.lat;
   const lng = targetLocation.lng;
   const fetchedAt = getFetchedAtLabel();
+  const priceMultiplier = getLocationPriceMultiplier(targetLocation);
 
   return [
-    { id: 1, type: '取引事例', address: `${targetLocation.label} 北東側`, category: '商業地域', price: 12500000, distance: '3分', lat: lat + 0.0020, lng: lng + 0.0024, similarity: 95, source: 'MCP: 不動産価格情報', fetchedAt },
-    { id: 2, type: '地価公示', address: `${targetLocation.label} 東側`, category: '商業地域', price: 11200000, distance: '5分', lat: lat + 0.0008, lng: lng + 0.0041, similarity: 82, source: 'MCP: 地価公示', fetchedAt },
-    { id: 3, type: '取引事例', address: `${targetLocation.label} 南西側`, category: '近隣商業地域', price: 8500000, distance: '8分', lat: lat - 0.0032, lng: lng - 0.0025, similarity: 65, source: 'MCP: 不動産価格情報', fetchedAt },
+    { id: 1, type: '取引事例', address: `${targetLocation.label} 北東側`, category: '商業地域', price: scalePrice(12500000, priceMultiplier), distance: '3分', lat: lat + 0.0020, lng: lng + 0.0024, similarity: 95, source: 'MCP: 不動産価格情報', fetchedAt },
+    { id: 2, type: '地価公示', address: `${targetLocation.label} 東側`, category: '商業地域', price: scalePrice(11200000, priceMultiplier), distance: '5分', lat: lat + 0.0008, lng: lng + 0.0041, similarity: 82, source: 'MCP: 地価公示', fetchedAt },
+    { id: 3, type: '取引事例', address: `${targetLocation.label} 南西側`, category: '近隣商業地域', price: scalePrice(8500000, priceMultiplier), distance: '8分', lat: lat - 0.0032, lng: lng - 0.0025, similarity: 65, source: 'MCP: 不動産価格情報', fetchedAt },
   ];
 };
 
